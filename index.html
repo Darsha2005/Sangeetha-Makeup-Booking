@@ -45,8 +45,31 @@ let B=[],F={},editId=null,tithe_view='date';
 const pill=s=>`<span class="pill ${String(s).split(' ')[0]}">${s}</span>`;
 function toast(m,e){const d=document.createElement('div');d.textContent=m;if(e)d.className='e';$('#toast').append(d);setTimeout(()=>d.remove(),4000)}
 function busy(on){$('#ld').style.width=on?'80%':'100%';if(!on)setTimeout(()=>$('#ld').style.width='0',400)}
-async function api(body){const u=localStorage.getItem('api');if(!u)throw new Error('Add your Web App URL in Settings first.');
- busy(1);try{const r=body?await fetch(u,{method:'POST',body:JSON.stringify(body)}):await fetch(u);const j=await r.json();if(!j.ok)throw new Error(j.error);return j}finally{busy(0)}}
+
+async function api(body) {
+  const u = localStorage.getItem('api');
+  const key = localStorage.getItem('apiKey');
+
+  if (!u) throw new Error('Add your Web App URL in Settings first.');
+  if (!key) throw new Error('Add your API Key in Settings first.');
+
+  busy(1);
+  try {
+    const url = u + (u.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(key);
+    const payload = body ? {...body, key} : null;
+
+    const r = body
+      ? await fetch(u, {method:'POST', body:JSON.stringify(payload)})
+      : await fetch(url);
+
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error);
+    return j;
+  } finally {
+    busy(0);
+  }
+}
+
 async function load(){try{B=(await api()).bookings;}catch(e){toast(e.message,1)}go()}
 function go(){const p=(location.hash||'#dashboard').slice(1);nav.classList.remove('open');
  nav.innerHTML=`<div class="brand">SANGEETHA'S<br>MAKEUP ARTIST</div>`+PAGES.map(x=>`<a class="${x[0]==p?'on':''}" href="#${x[0]}">${x[1]}</a>`).join('');
@@ -121,7 +144,25 @@ function reports(){return`<h1>Reports</h1><div class="cards">${stat('Sangeetha t
  <div class="card"><h2>Monthly report</h2>${tbl(['Month','Bookings','Amount','Balance','Sangeetha','Rizwana',"Tithe"],group(7).map(([k,v])=>[k.split('-').reverse().join('-'),v.n,inr(v.t),inr(v.bal),inr(v.s),inr(v.r),inr(v.x)]))}</div>
  <div class="card" style="margin-top:16px"><h2>Outstanding balances</h2>${tbl(['Event Date','Customer','Phone','Total','Balance','Status'],B.filter(b=>b.balance>0).sort((a,b)=>a.date<b.date?-1:1).map(b=>[dmy(b.date),esc(b.name),esc(b.phone),inr(b.total),inr(b.balance),pill(b.status)]))}
  <div class="bar noprint"><button class="btn s" onclick="csvOut(B.filter(b=>b.balance>0),'outstanding')">Export CSV</button><button class="btn o s" onclick="print()">Print</button></div></div>`}
-function settings(){return`<h1>Settings</h1><div class="card" style="margin-top:16px;max-width:620px"><label>Google Apps Script Web App URL</label><input id="u" placeholder="https://script.google.com/macros/s/…/exec" value="${esc(localStorage.getItem('api'))}">
- <p class="mut">Only this link is saved in your browser. All bookings live in Google Sheets.</p><button class="btn g" onclick="localStorage.setItem('api',$('#u').value.trim());toast('Saved. Loading bookings…');load()">Save & connect</button></div>`}
-if(!localStorage.getItem('api'))location.hash='#settings';load();
-</script></body></html>
+
+function settings() {
+  return `<h1>Settings</h1>
+  <div class="card" style="margin-top:16px;max-width:620px">
+    <label>Google Apps Script Web App URL</label>
+    <input id="u" placeholder="https://script.google.com/macros/s/…/exec"
+      value="${esc(localStorage.getItem('api'))}">
+
+    <label style="margin-top:16px">Private API Key</label>
+    <input id="k" type="password" placeholder="Paste your private API key"
+      value="${esc(localStorage.getItem('apiKey'))}">
+
+    <p class="mut">Your API key is saved in this browser. Never share it or publish it on GitHub.</p>
+
+    <button class="btn g" onclick="
+      localStorage.setItem('api',$('#u').value.trim());
+      localStorage.setItem('apiKey',$('#k').value.trim());
+      toast('Settings saved. Connecting…');
+      load();
+    ">Save & connect</button>
+  </div>`;
+}
